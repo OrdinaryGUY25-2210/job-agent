@@ -41,30 +41,11 @@ export function buildApp(): FastifyInstance {
 
   app.addHook('onRequest', userHook);
 
-  const recentErrors: { t: number; msg: string; stack: string; cause: string }[] = [];
-
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof HttpError) {
       reply.status(err.status).send({ error: err.message });
       return;
     }
-    recentErrors.push({
-      t: Date.now(),
-      msg: String((err as { message?: string } | undefined)?.message ?? err),
-      stack: String((err as { stack?: string } | undefined)?.stack ?? '').split('\n').slice(0, 4).join(' | '),
-      cause: (() => {
-        const parts: string[] = [];
-        let c: unknown = (err as { cause?: unknown } | undefined)?.cause;
-        let depth = 0;
-        while (c && depth < 5) {
-          parts.push(String((c as { message?: string } | undefined)?.message ?? c));
-          c = (c as { cause?: unknown } | undefined)?.cause;
-          depth++;
-        }
-        return parts.join(' || ');
-      })(),
-    });
-    if (recentErrors.length > 20) recentErrors.shift();
     if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === 'FST_ERR_VALIDATION') {
       reply.status(400).send({ error: 'Invalid request' });
       return;
@@ -80,12 +61,6 @@ export function buildApp(): FastifyInstance {
   });
 
 app.get('/api/health', async () => ({ ok: true, uptime: process.uptime() }));
-
-  app.get('/api/diag/errors', async (req) => {
-    const { requireUser } = await import('./lib/http.js');
-    requireUser(req);
-    return { errors: recentErrors.slice(-5) };
-  });
 
   void app.register(authRoutes, { prefix: '/api/auth' });
   void app.register(settingsRoutes, { prefix: '/api' });
