@@ -79,6 +79,11 @@ export function buildApp(): FastifyInstance {
       jwtSecretEnvLength: (process.env['JWT_SECRET'] ?? '').length,
       tokenFoundByHook: !!token,
       userSetByHook: !!req.user,
+      hookRan: (req as unknown as Record<string, unknown>)._hookRan ?? false,
+      hookToken: (req as unknown as Record<string, unknown>)._hookToken ?? false,
+      hookClaims: (req as unknown as Record<string, unknown>)._hookClaims ?? false,
+      hookUserSet: (req as unknown as Record<string, unknown>)._hookUserSet ?? false,
+      hookThrew: (req as unknown as Record<string, unknown>)._hookThrew ?? false,
       verified,
       error,
     };
