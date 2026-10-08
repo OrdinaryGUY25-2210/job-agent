@@ -165,7 +165,7 @@ export const jobs = pgTable(
     postedAt: timestamp('posted_at', { withTimezone: true }),
     source: varchar('source', { length: 32 }).default('agent').notNull(),
     raw: jsonb('raw').$type<Record<string, unknown>>(),
-    firstSeenAt: now(),
+    firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).defaultNow().notNull(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
@@ -282,7 +282,7 @@ export const agentSessions = pgTable(
     version: varchar('version', { length: 40 }).default('').notNull(),
     state: agentStateEnum('state').default('offline').notNull(),
     userAgent: varchar('user_agent', { length: 500 }),
-    startedAt: now(),
+    startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow().notNull(),
     meta: jsonb('meta').$type<Record<string, unknown>>(),
   },
