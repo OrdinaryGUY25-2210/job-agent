@@ -3,12 +3,6 @@ import type { DiscoveredJob } from '@jobagent/types';
 import { absoluteUrl } from '../allowlist.js';
 import type { ApplyForm, ApplyOutcome, ApplyPage, PortalAdapter } from './base.js';
 
-const JOB_HINT = /\/(jobs|job|job-openings|refer|careers\/job)(\/|\?|$)/i;
-
-function looksLikeJobHref(href: string): boolean {
-  return JOB_HINT.test(href) || /linkedin\.com\/jobs\/view\//i.test(href);
-}
-
 /**
  * Generic DOM-based adapter. Works for most portals when they expose job
  * links in anchors; apply logic is intentionally conservative and stops
@@ -46,8 +40,9 @@ export class GenericAdapter implements PortalAdapter {
 
   async extractJobs(page: Page): Promise<DiscoveredJob[]> {
     const current = page.url();
-    const raw = await page.$$eval('a[href]', (els) =>
-      els
+    const raw = await page.$$eval('a[href]', (els) => {
+      const jobHint = /\/(jobs|job|job-openings|refer|careers\/job)(\/|\?|$)/i;
+      return els
         .filter((a) => {
           const href = a.getAttribute('href') ?? '';
           return /^(https?:)?(\/\/)?[^/]/.test(href) || href.startsWith('/');
@@ -58,8 +53,8 @@ export class GenericAdapter implements PortalAdapter {
           title: a.getAttribute('title') ?? '',
           aria: a.getAttribute('aria-label') ?? '',
         }))
-        .filter((l) => looksLikeJobHref(l.href)),
-    );
+        .filter((l) => jobHint.test(l.href) || /linkedin\.com\/jobs\/view\//i.test(l.href));
+    });
 
     const jobs: DiscoveredJob[] = [];
     for (const link of raw) {
