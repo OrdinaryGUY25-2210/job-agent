@@ -60,34 +60,7 @@ export function buildApp(): FastifyInstance {
     reply.status(500).send({ error: 'Internal server error' });
   });
 
-  app.get('/api/health', async () => ({ ok: true, uptime: process.uptime() }));
-
-  app.get('/api/diag', async (req) => {
-    const { jwtVerify } = await import('jose');
-    const { extractToken } = await import('./lib/auth.js');
-    const token = extractToken(req);
-    const secret = new TextEncoder().encode(process.env['JWT_SECRET'] ?? '');
-    let verified = false;
-    let error = '';
-    try {
-      await jwtVerify(token ?? '', secret, { algorithms: ['HS256'] });
-      verified = true;
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-    }
-    return {
-      jwtSecretEnvLength: (process.env['JWT_SECRET'] ?? '').length,
-      tokenFoundByHook: !!token,
-      userSetByHook: !!req.user,
-      hookRan: (req as unknown as Record<string, unknown>)._hookRan ?? false,
-      hookToken: (req as unknown as Record<string, unknown>)._hookToken ?? false,
-      hookClaims: (req as unknown as Record<string, unknown>)._hookClaims ?? false,
-      hookUserSet: (req as unknown as Record<string, unknown>)._hookUserSet ?? false,
-      hookThrew: (req as unknown as Record<string, unknown>)._hookThrew ?? false,
-      verified,
-      error,
-    };
-  });
+app.get('/api/health', async () => ({ ok: true, uptime: process.uptime() }));
 
   void app.register(authRoutes, { prefix: '/api/auth' });
   void app.register(settingsRoutes, { prefix: '/api' });
