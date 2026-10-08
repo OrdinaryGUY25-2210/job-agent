@@ -2,7 +2,7 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "npm install --include=dev && bash -c 'if [ -z \"$DATABASE_URL\" ]; then echo \"[build] DATABASE_URL belum diset, skip db:migrate\"; else npm run db:migrate; fi' && npm run build -w @jobagent/web"
+    "buildCommand": "npm install --include=dev && npm run build -w @jobagent/web"
   },
   "deploy": {
     "startCommand": "node scripts/start.mjs",

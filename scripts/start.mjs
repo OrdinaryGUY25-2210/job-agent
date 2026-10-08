@@ -6,7 +6,7 @@
  * The dashboard proxies /api/* -> http://127.0.0.1:3001 via Next rewrites,
  * so a single service + domain is enough.
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 
 const PORT = process.env.PORT ?? '3000';
@@ -15,6 +15,29 @@ const CWD = process.cwd();
 const NEXT_BIN = join(CWD, 'node_modules', 'next', 'dist', 'bin', 'next');
 
 console.log(`[start] web on :${PORT}, api on :${API_PORT}`);
+
+function migrate() {
+  if (!process.env.DATABASE_URL) {
+    console.log('[migrate] DATABASE_URL unset, skipping migrations');
+    return;
+  }
+  console.log('[migrate] applying sql migrations');
+  const res = spawnSync(
+    process.execPath,
+    ['packages/database/src/migrate.ts'],
+    {
+      cwd: CWD,
+      stdio: 'inherit',
+      env: { ...process.env, NODE_OPTIONS: '--import=tsx' },
+    },
+  );
+  if (res.status !== 0) {
+    console.error('[migrate] failed, aborting start');
+    process.exit(res.status ?? 1);
+  }
+}
+
+migrate();
 
 const api = spawn(process.execPath, ['apps/api/src/server.ts'], {
   cwd: CWD,
