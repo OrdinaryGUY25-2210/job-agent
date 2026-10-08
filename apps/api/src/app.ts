@@ -62,6 +62,26 @@ export function buildApp(): FastifyInstance {
 
   app.get('/api/health', async () => ({ ok: true, uptime: process.uptime() }));
 
+  app.get('/api/diag', async (req) => {
+    const { jwtVerify } = await import('jose');
+    const token = String((req.query as Record<string, string | undefined>).token ?? '');
+    const secret = new TextEncoder().encode(process.env['JWT_SECRET'] ?? '');
+    let verified = false;
+    let error = '';
+    try {
+      await jwtVerify(token, secret, { algorithms: ['HS256'] });
+      verified = true;
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
+    return {
+      jwtSecretEnvLength: (process.env['JWT_SECRET'] ?? '').length,
+      userSetByHook: !!req.user,
+      verified,
+      error,
+    };
+  });
+
   void app.register(authRoutes, { prefix: '/api/auth' });
   void app.register(settingsRoutes, { prefix: '/api' });
   void app.register(jobsRoutes, { prefix: '/api' });
