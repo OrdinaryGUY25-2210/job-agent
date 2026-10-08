@@ -17,10 +17,10 @@ interface RawLink {
   location: string;
 }
 
-const EXTRACT_JOB_LINKS = `els => {
-  const jobHint = /\\/(jobs|job|job-openings|refer|careers\\/job)(\\/|\\?|$)/i;
-  const clean = (s) => (s == null ? '' : String(s)).replace(/\\s+/g, ' ').trim();
-  const pick = (root, sels) => {
+const EXTRACT_JOB_LINKS = (els: Element[]) => {
+  const jobHint = /\/(jobs|job|job-openings|refer|careers\/job)(\/|\?|$)/i;
+  const clean = (s: unknown) => (s == null ? '' : String(s)).replace(/\s+/g, ' ').trim();
+  const pick = (root: Element | null, sels: string[]) => {
     if (!root || !root.querySelector) return '';
     for (const sel of sels) {
       const el = root.querySelector(sel);
@@ -32,7 +32,7 @@ const EXTRACT_JOB_LINKS = `els => {
   return els
     .filter((a) => {
       const href = a.getAttribute('href') || '';
-      return /^(https?:)?(\\/\\/)?[^/]/.test(href) || href.startsWith('/');
+      return /^(https?:)?(\/\/)?[^/]/.test(href) || href.startsWith('/');
     })
     .map((a) => {
       const card = a.closest('li') || a.closest('article') || a.closest('[class*="card"]') || a.parentElement;
@@ -45,8 +45,8 @@ const EXTRACT_JOB_LINKS = `els => {
         location: pick(card, ['[class*="location"]', '[class*="workplace"]', '[class*="loc"]', 'address']).slice(0, 300),
       };
     })
-    .filter((l) => jobHint.test(l.href) || /linkedin\\.com\\/jobs\\/view\\//i.test(l.href));
-}`;
+    .filter((l) => jobHint.test(l.href) || /linkedin\.com\/jobs\/view\//i.test(l.href));
+};
 
 export class GenericAdapter implements PortalAdapter {
   portal: string;
@@ -80,6 +80,7 @@ export class GenericAdapter implements PortalAdapter {
 
   async extractJobs(page: Page): Promise<DiscoveredJob[]> {
     const current = page.url();
+    await page.evaluate('globalThis.__name = globalThis.__name || ((fn) => fn);').catch(() => undefined);
     const raw = (await page.$$eval('a[href]', EXTRACT_JOB_LINKS)) as RawLink[];
     if (!Array.isArray(raw)) throw new Error(`EXTRACT_INVALID: expected array, got ${raw === null ? 'null' : typeof raw}`);
 
