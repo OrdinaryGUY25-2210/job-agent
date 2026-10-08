@@ -64,18 +64,20 @@ export function buildApp(): FastifyInstance {
 
   app.get('/api/diag', async (req) => {
     const { jwtVerify } = await import('jose');
-    const token = String((req.query as Record<string, string | undefined>).token ?? '');
+    const { extractToken } = await import('./lib/auth.js');
+    const token = extractToken(req);
     const secret = new TextEncoder().encode(process.env['JWT_SECRET'] ?? '');
     let verified = false;
     let error = '';
     try {
-      await jwtVerify(token, secret, { algorithms: ['HS256'] });
+      await jwtVerify(token ?? '', secret, { algorithms: ['HS256'] });
       verified = true;
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     }
     return {
       jwtSecretEnvLength: (process.env['JWT_SECRET'] ?? '').length,
+      tokenFoundByHook: !!token,
       userSetByHook: !!req.user,
       verified,
       error,
