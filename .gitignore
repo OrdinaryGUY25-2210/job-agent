@@ -1,0 +1,17 @@
+node_modules/
+.next/
+dist/
+build/
+coverage/
+uploads/
+*.log
+.env
+.env.local
+.env.*.local
+.DS_Store
+playwright-report/
+test-results/
+browser-profile/
+*.tsbuildinfo
+.railway/
+cv/

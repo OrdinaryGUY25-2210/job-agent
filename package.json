@@ -1,0 +1,41 @@
+{
+  "name": "job-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,magenta \"npm run dev -w @jobagent/api\" \"npm run dev -w @jobagent/web\"",
+    "dev:api": "npm run dev -w @jobagent/api",
+    "dev:web": "npm run dev -w @jobagent/web",
+    "dev:runner": "npm run dev -w @jobagent/runner",
+    "build": "npm run build -w @jobagent/web",
+    "start:api": "npm run start -w @jobagent/api",
+    "start:web": "npm run start -w @jobagent/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "db:migrate": "npm run db:migrate -w @jobagent/db",
+    "db:studio": "echo \"SQL migrations are hand-written in packages/database/migrations\""
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "3.3.7",
+    "@eslint/js": "9.39.5",
+    "@types/node": "26.6.4",
+    "@types/pg": "8.15.6",
+    "concurrently": "10.0.5",
+    "eslint": "9.39.5",
+    "globals": "17.13.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.1"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@jobagent/runner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "start": "node --import tsx src/index.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@jobagent/ai": "0.1.0",
+    "@jobagent/logger": "0.1.0",
+    "@jobagent/shared": "0.1.0",
+    "@jobagent/types": "0.1.0",
+    "playwright": "1.63.0",
+    "zod": "4.6.5"
+  }
+}
