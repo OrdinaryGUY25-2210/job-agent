@@ -16,6 +16,7 @@
     "dev:web": "npm run dev -w @jobagent/web",
     "dev:runner": "npm run dev -w @jobagent/runner",
     "build": "npm run build -w @jobagent/web",
+    "start": "node scripts/start.mjs",
     "start:api": "npm run start -w @jobagent/api",
     "start:web": "npm run start -w @jobagent/web",
     "typecheck": "npm run typecheck --workspaces --if-present",
