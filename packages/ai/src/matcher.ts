@@ -133,6 +133,11 @@ export function scoreJob(
   }
   score = Math.round(score * 100);
 
+  if (locationBlocks(job, profile, prefs)) {
+    score = Math.min(score, Math.max(prefs.minMatchScore - 1, 0));
+    reasons.push('Location outside preference (not remote)');
+  }
+
   // --- Reasons (top contributors / red flags)
   const low: string[] = [];
   for (const k of ['skills', 'title', 'location', 'salary'] as const) {
@@ -165,6 +170,16 @@ function locationScore(job: MatchableJob, profile: MatchableProfile, prefs: Matc
   if (wantLocations.length === 0) return 0.6;
   const hit = wantLocations.some((l) => loc.includes(l));
   return hit ? 1 : 0.1;
+}
+
+function locationBlocks(job: MatchableJob, profile: MatchableProfile, prefs: MatchablePrefs): boolean {
+  if (!profile.remotePreferred) return false;
+  const loc = (job.location ?? '').trim().toLowerCase();
+  if (!loc) return false;
+  if (/\bremote\b|wfh|work from home|anywhere/.test(loc)) return false;
+  const want = [...profile.locations, ...prefs.locations].map((l) => l.toLowerCase()).filter(Boolean);
+  if (want.length === 0) return true;
+  return !want.some((w) => loc.includes(w));
 }
 
 function locationReason(job: MatchableJob, profile: MatchableProfile): string {
