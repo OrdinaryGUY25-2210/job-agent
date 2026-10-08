@@ -1,4 +1,3 @@
-# job-agent
 # AI Job Application Agent
 
 Distributed agent system: Railway runs the brain (API, queue, state), the web dashboard is the control center, and a Runner on your laptop opens a real browser and operates job portals.
