@@ -297,7 +297,7 @@ export async function overview(userId: string) {
   ]);
 
   return {
-    connectedRunners: 0, // set by route from hub
+    connectedRunners: sessions.filter((s) => s.state === 'online' && Date.now() - s.lastSeenAt.getTime() < 90_000).length,
     sessions: sessions.map(toSession),
     tasks: { queued: Number(queued[0]?.n ?? 0), active: Number(active[0]?.n ?? 0) },
     applicationCounters: Object.fromEntries(counters.map((c) => [c.status, c.n])),

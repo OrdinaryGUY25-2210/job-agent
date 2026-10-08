@@ -97,6 +97,6 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
   app.get('/agent/overview', async (req, reply) => {
     const user = requireUser(req);
     const data = await overview(user.id);
-    return reply.send({ ...data, connectedRunners: app.hub.connectedRunners() });
+    return reply.send(data);
   });
 }
