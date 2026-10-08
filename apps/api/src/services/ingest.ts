@@ -13,7 +13,7 @@ export async function ingestJobs(
   userId: string,
   input: { jobs: DiscoveredJob[]; tasksId?: string | null },
   hub?: Hub,
-): Promise<{ ingested: number; matched: number; filtered: number }> {
+): Promise<{ ingested: number; matched: number; filtered: number; errors: { title: string; jobUrl: string; error: string }[] }> {
   const profileRow = await db().query.profiles.findFirst({ where: eq(schema.profiles.userId, userId) });
   const prefsRow = await db().query.jobPreferences.findFirst({ where: eq(schema.jobPreferences.userId, userId) });
   if (!profileRow || !prefsRow) badRequest('Set up profile and preferences before ingesting jobs');
@@ -21,85 +21,94 @@ export async function ingestJobs(
   let ingested = 0;
   let matched = 0;
   let filtered = 0;
+  const errors: { title: string; jobUrl: string; error: string }[] = [];
 
   for (const j of input.jobs) {
-    const normalizedUrl = normalizeUrl(j.jobUrl);
-    const existing = await db()
-      .select()
-      .from(schema.jobs)
-      .where(and(eq(schema.jobs.portal, j.portal), eq(schema.jobs.normalizedUrl, normalizedUrl)))
-      .limit(1);
+    try {
+      const normalizedUrl = normalizeUrl(j.jobUrl).slice(0, 900);
+      const existing = await db()
+        .select()
+        .from(schema.jobs)
+        .where(and(eq(schema.jobs.portal, j.portal), eq(schema.jobs.normalizedUrl, normalizedUrl)))
+        .limit(1);
 
-    const values = {
-      externalJobId: j.externalJobId,
-      portal: j.portal,
-      jobUrl: j.jobUrl,
-      normalizedUrl,
-      title: j.title,
-      company: j.company,
-      location: j.location,
-      salaryText: j.salaryText,
-      salaryMin: j.salaryMin,
-      salaryMax: j.salaryMax,
-      description: j.description,
-      requirements: j.requirements,
-      employmentType: j.employmentType,
-      postedAt: j.postedAt ? new Date(j.postedAt) : null,
-      raw: (j.raw as Record<string, unknown> | null) ?? null,
-    };
+      const values = {
+        externalJobId: j.externalJobId ? j.externalJobId.slice(0, 255) : null,
+        portal: j.portal.slice(0, 80),
+        jobUrl: j.jobUrl.slice(0, 1000),
+        normalizedUrl,
+        title: j.title.slice(0, 300),
+        company: (j.company ?? '').slice(0, 300),
+        location: (j.location ?? '').slice(0, 300),
+        salaryText: (j.salaryText ?? '').slice(0, 200),
+        salaryMin: j.salaryMin,
+        salaryMax: j.salaryMax,
+        description: (j.description ?? '').slice(0, 20000),
+        requirements: j.requirements,
+        employmentType: (j.employmentType ?? '').slice(0, 80),
+        postedAt: j.postedAt ? new Date(j.postedAt) : null,
+        raw: (j.raw as Record<string, unknown> | null) ?? null,
+      };
 
-    let jobId: string;
-    if (existing[0]) {
-      await db().update(schema.jobs).set({ ...values, lastSeenAt: new Date() }).where(eq(schema.jobs.id, existing[0].id));
-      jobId = existing[0].id;
-    } else {
-      const inserted = await db().insert(schema.jobs).values(values).returning();
-      const row = inserted[0];
-      if (!row) continue;
-      jobId = row.id;
-    }
-    ingested++;
+      let jobId: string;
+      if (existing[0]) {
+        await db().update(schema.jobs).set({ ...values, lastSeenAt: new Date() }).where(eq(schema.jobs.id, existing[0].id));
+        jobId = existing[0].id;
+      } else {
+        const inserted = await db().insert(schema.jobs).values(values).returning();
+        const row = inserted[0];
+        if (!row) continue;
+        jobId = row.id;
+      }
+      ingested++;
 
-    const result = scoreJob(j, profileRow, prefsRow);
-    await db()
-      .insert(schema.jobMatches)
-      .values({
-        jobId,
-        userId,
-        score: result.score,
-        tier: result.tier,
-        reasons: result.reasons,
-        breakdown: result.breakdown,
-        status: prefsRow.requireApproval ? 'pending' : 'approved',
-      })
-      .onConflictDoUpdate({
-        target: [schema.jobMatches.userId, schema.jobMatches.jobId],
-        set: { score: result.score, tier: result.tier, reasons: result.reasons, breakdown: result.breakdown },
-      });
+      const result = scoreJob(j, profileRow, prefsRow);
+      await db()
+        .insert(schema.jobMatches)
+        .values({
+          jobId,
+          userId,
+          score: result.score,
+          tier: result.tier,
+          reasons: result.reasons,
+          breakdown: result.breakdown,
+          status: prefsRow.requireApproval ? 'pending' : 'approved',
+        })
+        .onConflictDoUpdate({
+          target: [schema.jobMatches.userId, schema.jobMatches.jobId],
+          set: { score: result.score, tier: result.tier, reasons: result.reasons, breakdown: result.breakdown },
+        });
 
-    if (result.score >= prefsRow.minMatchScore) {
-      matched++;
-      await logEvent(
-        [
-          {
-            userId,
-            applicationId: null,
-            type: 'job_detected',
-            payload: {
-              jobId,
-              title: j.title,
-              company: j.company,
-              portal: j.portal,
-              score: result.score,
-              tier: result.tier,
-              status: prefsRow.requireApproval ? 'waiting_approval' : 'approved',
+      if (result.score >= prefsRow.minMatchScore) {
+        matched++;
+        await logEvent(
+          [
+            {
+              userId,
+              applicationId: null,
+              type: 'job_detected',
+              payload: {
+                jobId,
+                title: j.title,
+                company: j.company,
+                portal: j.portal,
+                score: result.score,
+                tier: result.tier,
+                status: prefsRow.requireApproval ? 'waiting_approval' : 'approved',
+              },
             },
-          },
-        ],
-        hub,
-      );
-    } else {
-      filtered++;
+          ],
+          hub,
+        );
+      } else {
+        filtered++;
+      }
+    } catch (err) {
+      errors.push({
+        title: (j.title ?? '').slice(0, 80),
+        jobUrl: (j.jobUrl ?? '').slice(0, 150),
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
@@ -107,7 +116,7 @@ export async function ingestJobs(
     await db().update(schema.agentTasks).set({ status: 'completed', finishedAt: new Date() }).where(eq(schema.agentTasks.id, input.tasksId));
   }
 
-  return { ingested, matched, filtered };
+  return { ingested, matched, filtered, errors };
 }
 
 export async function listJobs(

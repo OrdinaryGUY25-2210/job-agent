@@ -84,7 +84,7 @@ export class ApiClient {
     return this.request('/agent/events', { method: 'POST', body: JSON.stringify({ type, payload }) });
   }
 
-  ingest(jobs: DiscoveredJob[], tasksId: string | null): Promise<{ ingested: number; matched: number; filtered: number }> {
+  ingest(jobs: DiscoveredJob[], tasksId: string | null): Promise<{ ingested: number; matched: number; filtered: number; errors?: { title: string; jobUrl: string; error: string }[] }> {
     return this.request('/jobs/ingest', { method: 'POST', body: JSON.stringify({ jobs, tasksId }) });
   }
 
