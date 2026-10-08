@@ -4,7 +4,7 @@ import cookie from '@fastify/cookie';
 import ws from '@fastify/websocket';
 import multipart from '@fastify/multipart';
 import { HttpError } from './lib/http.js';
-import { userPlugin } from './plugins/user.js';
+import { userHook } from './plugins/user.js';
 import { registerWebSocket } from './ws/hub.js';
 import { authRoutes } from './routes/auth.js';
 import { settingsRoutes } from './routes/settings.js';
@@ -39,7 +39,7 @@ export function buildApp(): FastifyInstance {
   void app.register(ws);
   void app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
 
-  void app.register(userPlugin);
+  app.addHook('onRequest', userHook);
 
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof HttpError) {
