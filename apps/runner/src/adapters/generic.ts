@@ -54,13 +54,24 @@ const EXTRACT_JOB_LINKS = (els: Element[]) => {
           .filter((s) => s && s.length < 90);
         const locRe =
           /\b(remote|wfh|work from home|hybrid|on-site|on site|jakarta|bandung|surabaya|yogyakarta|medan|makassar|semarang|bali|tangerang|bekasi|depok|bogor|indonesia|singapore)\b|,\s*[^,]{3,}/i;
-        const junkRe = /(gaji|tahun\b|waktu\b|diploma|perusahaan premium|magang|full[- ]?time|part[- ]?time|kontrak|minimal\b|lowongan|\+\d+$)/i;
+        const junkRe = /(gaji|rp\s?\d|\djt\b|tahun\b|waktu\b|diploma|perusahaan premium|magang|full[- ]?time|part[- ]?time|kontrak|minimal\b|lowongan|\+\d+$)/i;
+        const isLoc = (s: string) =>
+          locRe.test(s) &&
+          !junkRe.test(s) &&
+          !/^(pt|cv)\b/i.test(s) &&
+          (/,/.test(s) || /\b(remote|wfh|hybrid|on-site|on site|work from home)\b/i.test(s) || s.split(/\s+/).length <= 2);
         const body = lines.slice(1);
-        const locIdx = body.findIndex((s) => locRe.test(s) && !junkRe.test(s));
+        let locIdx = -1;
+        for (let i = body.length - 1; i >= 0; i--) {
+          if (isLoc(body[i])) {
+            locIdx = i;
+            break;
+          }
+        }
         if (!location && locIdx >= 0) location = body[locIdx];
         if (!company) {
           const prev = locIdx > 0 ? body[locIdx - 1] : '';
-          if (prev && !junkRe.test(prev) && !locRe.test(prev)) {
+          if (prev && !junkRe.test(prev) && !isLoc(prev)) {
             company = prev;
           } else {
             const pt = body.find((s) => /^(pt|cv)\.?\s/i.test(s));
