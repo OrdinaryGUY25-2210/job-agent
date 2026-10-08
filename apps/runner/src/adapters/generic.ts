@@ -21,11 +21,20 @@ const EXTRACT_JOB_LINKS = (els: Element[]) => {
   const jobHint = /\/(jobs|job|job-openings|refer|careers\/job)(\/|\?|$)/i;
   const clean = (s: unknown) => (s == null ? '' : String(s)).replace(/\s+/g, ' ').trim();
   const pick = (root: Element | null, sels: string[]) => {
-    if (!root || !root.querySelector) return '';
+    if (!root || !root.querySelectorAll) return '';
     for (const sel of sels) {
-      const el = root.querySelector(sel);
-      const t = clean(el ? el.textContent : null);
-      if (t) return t;
+      let best = '';
+      let nodes: NodeListOf<Element>;
+      try {
+        nodes = root.querySelectorAll(sel);
+      } catch {
+        continue;
+      }
+      for (const el of Array.from(nodes)) {
+        const t = clean(el.textContent);
+        if (t && (!best || t.length < best.length)) best = t;
+      }
+      if (best) return best;
     }
     return '';
   };
@@ -90,6 +99,7 @@ export class GenericAdapter implements PortalAdapter {
       if (url === current || jobs.some((j) => j.jobUrl === url)) continue;
       const title = (link.title || link.aria || link.text || 'Unknown position').slice(0, 300);
       if (title.length < 2) continue;
+      if (/^(jobs?|careers?|opportunities|search|browse|view all|lihat semua|cari lowongan|semua lowongan|lowongan kerja|all jobs|explore)( page)?$/i.test(title)) continue;
       jobs.push({
         externalJobId: extractExternalId(url),
         portal: this.portal,

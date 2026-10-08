@@ -156,7 +156,7 @@ function jobLooksSenior(job: MatchableJob): boolean {
 function locationScore(job: MatchableJob, profile: MatchableProfile, prefs: MatchablePrefs): number {
   const loc = (job.location ?? '').trim().toLowerCase();
   if (!loc) return 0.6; // unknown location → neutral
-  const isRemote = /remote|wfh|anywhere|hybrid/.test(loc);
+  const isRemote = /\bremote\b|wfh|work from home|anywhere/.test(loc);
   if (isRemote) {
     if (profile.remotePreferred) return 1;
     return 0.7;
