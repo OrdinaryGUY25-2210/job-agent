@@ -45,13 +45,38 @@ const EXTRACT_JOB_LINKS = (els: Element[]) => {
     })
     .map((a) => {
       const card = a.closest('li') || a.closest('article') || a.closest('[class*="card"]') || a.parentElement;
+      let company = pick(card, ['[class*="subtitle"]', '[class*="company"]', '[class*="employer"]', 'h4']).slice(0, 300);
+      let location = pick(card, ['[class*="location"]', '[class*="workplace"]', '[class*="metadata"]', '[class*="caption"]', 'address']).slice(0, 300);
+      if (!company || !location) {
+        const lines = String(card && card.innerText ? card.innerText : '')
+          .split(/\n+/)
+          .map((s) => s.trim())
+          .filter((s) => s && s.length < 90);
+        const locRe =
+          /\b(remote|wfh|work from home|hybrid|on-site|on site|jakarta|bandung|surabaya|yogyakarta|medan|makassar|semarang|bali|tangerang|bekasi|depok|bogor|indonesia|singapore)\b|,\s*[^,]{3,}/i;
+        const junkRe = /(gaji|tahun\b|waktu\b|diploma|perusahaan premium|magang|full[- ]?time|part[- ]?time|kontrak|minimal\b|lowongan|\+\d+$)/i;
+        const body = lines.slice(1);
+        const locIdx = body.findIndex((s) => locRe.test(s) && !junkRe.test(s));
+        if (!location && locIdx >= 0) location = body[locIdx];
+        if (!company) {
+          const prev = locIdx > 0 ? body[locIdx - 1] : '';
+          if (prev && !junkRe.test(prev) && !locRe.test(prev)) {
+            company = prev;
+          } else {
+            const pt = body.find((s) => /^(pt|cv)\.?\s/i.test(s));
+            if (pt) company = pt;
+          }
+        }
+        company = company.slice(0, 300);
+        location = location.slice(0, 300);
+      }
       return {
         href: a.getAttribute('href') || '',
         text: clean(a.textContent).slice(0, 300),
         title: a.getAttribute('title') || '',
         aria: a.getAttribute('aria-label') || '',
-        company: pick(card, ['[class*="subtitle"]', '[class*="company"]', '[class*="employer"]', 'h4']).slice(0, 300),
-        location: pick(card, ['[class*="location"]', '[class*="workplace"]', '[class*="loc"]', 'address']).slice(0, 300),
+        company,
+        location,
       };
     })
     .filter((l) => jobHint.test(l.href) || /linkedin\.com\/jobs\/view\//i.test(l.href));
