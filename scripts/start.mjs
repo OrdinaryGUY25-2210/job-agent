@@ -17,10 +17,14 @@ const NEXT_BIN = join(CWD, 'node_modules', 'next', 'dist', 'bin', 'next');
 console.log(`[start] web on :${PORT}, api on :${API_PORT}`);
 
 function migrate() {
-  if (!process.env.DATABASE_URL) {
+  const dbUrl = process.env.DATABASE_URL ?? '';
+  if (!dbUrl) {
+    console.log('[start] DATABASE_URL at runtime: MISSING');
     console.log('[migrate] DATABASE_URL unset, skipping migrations');
     return;
   }
+  const host = dbUrl.split('@')[1]?.split('/')[0] ?? '?';
+  console.log(`[start] DATABASE_URL at runtime: SET (host=${host})`);
   console.log('[migrate] applying sql migrations');
   const res = spawnSync(
     process.execPath,
