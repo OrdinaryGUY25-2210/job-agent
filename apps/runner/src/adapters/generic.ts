@@ -45,8 +45,16 @@ const EXTRACT_JOB_LINKS = (els: Element[]) => {
     })
     .map((a) => {
       const card = a.closest('li') || a.closest('article') || a.closest('[class*="card"]') || a.parentElement;
-      let company = pick(card, ['[class*="subtitle"]', '[class*="company"]', '[class*="employer"]', 'h4']).slice(0, 300);
-      let location = pick(card, ['[class*="location"]', '[class*="workplace"]', '[class*="metadata"]', '[class*="caption"]', 'address']).slice(0, 300);
+      let company = pick(card, ['[data-automation="jobCompany"]', '[class*="subtitle"]', '[class*="company"]', '[class*="employer"]', 'h4']).slice(0, 300);
+      let location = pick(card, [
+        '[data-automation="jobCardLocation"]',
+        '[data-automation="jobLocation"]',
+        '[class*="location"]',
+        '[class*="workplace"]',
+        '[class*="metadata"]',
+        '[class*="caption"]',
+        'address',
+      ]).slice(0, 300);
       if (!company || !location) {
         const lines = String(card && card.innerText ? card.innerText : '')
           .split(/\n+/)
@@ -81,10 +89,13 @@ const EXTRACT_JOB_LINKS = (els: Element[]) => {
         company = company.slice(0, 300);
         location = location.slice(0, 300);
       }
+      let t = a.getAttribute('title') || '';
+      if (!t) t = a.getAttribute('aria-label') || '';
+      if (!t) t = pick(card, ['[data-automation="jobTitle"]', 'h3', 'h2']);
       return {
         href: a.getAttribute('href') || '',
         text: clean(a.textContent).slice(0, 300),
-        title: a.getAttribute('title') || '',
+        title: t.slice(0, 300),
         aria: a.getAttribute('aria-label') || '',
         company,
         location,
@@ -108,8 +119,8 @@ export class GenericAdapter implements PortalAdapter {
     }
     if (this.portal === 'jobstreet.co.id' || this.portal === 'jobstreet') {
       return context.query
-        ? `https://www.jobstreet.co.id/id/job-search/${encodeURIComponent(context.query).replace(/%20/g, '-')}/`
-        : 'https://www.jobstreet.co.id/';
+        ? `https://id.jobstreet.com/id/jobs?keywords=${encodeURIComponent(context.query)}`
+        : 'https://id.jobstreet.com/id/jobs';
     }
     if (this.portal === 'glints.com' || this.portal === 'glints') {
       return context.query
@@ -137,7 +148,7 @@ export class GenericAdapter implements PortalAdapter {
         .replace(/^(?:job card title|job title|title)\s*:\s*/i, '')
         .slice(0, 300);
       if (title.length < 2) continue;
-      if (/^(jobs?|careers?|opportunities|search|browse|view all|lihat semua|cari lowongan|semua lowongan|lowongan kerja|all jobs|explore)( page)?$/i.test(title)) continue;
+      if (/^(jobs?|careers?|opportunities|search|browse|view all|lihat semua|cari lowongan|semua lowongan|lowongan kerja|all jobs|explore|english|bahasa)( page)?$/i.test(title)) continue;
       jobs.push({
         externalJobId: extractExternalId(url),
         portal: this.portal,
