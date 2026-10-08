@@ -154,7 +154,8 @@ function jobLooksSenior(job: MatchableJob): boolean {
 }
 
 function locationScore(job: MatchableJob, profile: MatchableProfile, prefs: MatchablePrefs): number {
-  const loc = (job.location ?? '').toLowerCase();
+  const loc = (job.location ?? '').trim().toLowerCase();
+  if (!loc) return 0.6; // unknown location → neutral
   const isRemote = /remote|wfh|anywhere|hybrid/.test(loc);
   if (isRemote) {
     if (profile.remotePreferred) return 1;
@@ -162,7 +163,7 @@ function locationScore(job: MatchableJob, profile: MatchableProfile, prefs: Matc
   }
   const wantLocations = [...profile.locations, ...prefs.locations].map((l) => l.toLowerCase()).filter(Boolean);
   if (wantLocations.length === 0) return 0.6;
-  const hit = wantLocations.some((l) => loc.includes(l) || l.includes(loc));
+  const hit = wantLocations.some((l) => loc.includes(l));
   return hit ? 1 : 0.1;
 }
 

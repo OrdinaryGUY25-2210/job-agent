@@ -42,7 +42,16 @@ export async function executeTask(
 async function runDiscovery(client: ApiClient, task: AgentTask, browser: Session): Promise<void> {
   const payload = task.payload as { portals?: string[]; query?: string };
   const query = payload.query ?? '';
-  const wanted = payload.portals && payload.portals.length > 0 ? payload.portals : ['linkedin.com'];
+  let wanted = payload.portals && payload.portals.length > 0 ? payload.portals : [];
+  if (wanted.length === 0) {
+    try {
+      const ctx = await client.taskContext(task.id);
+      wanted = (ctx.portals ?? []).filter((p) => p.enabled).map((p) => p.portal);
+    } catch {
+      wanted = [];
+    }
+  }
+  if (wanted.length === 0) wanted = ['linkedin.com'];
 
   const portals = wanted.map((p) => p.replace(/^https?:\/\//, '').toLowerCase());
   const allowedPortals = portals.filter((p) => allowedDomains.some((d) => p === d || p.endsWith(`.${d}`)));
