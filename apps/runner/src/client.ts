@@ -19,6 +19,7 @@ export interface TaskContext {
     yearsExperience?: number;
     skills?: string[];
     workAuthorization?: string;
+    remotePreferred?: boolean;
     expectedSalary?: (number | null)[];
     cv?: { id: string; filename: string; storageKey: string } | null;
   };

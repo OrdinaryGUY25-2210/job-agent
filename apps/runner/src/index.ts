@@ -27,8 +27,12 @@ async function main(): Promise<void> {
   log.info('browser ready');
 
   let running = true;
+  const heartbeat = setInterval(() => {
+    void client.heartbeat(session.id).catch(() => undefined);
+  }, 30_000);
   const shutdown = async () => {
     running = false;
+    clearInterval(heartbeat);
     await closeBrowser(browser).catch(() => undefined);
     process.exit(0);
   };
@@ -38,21 +42,12 @@ async function main(): Promise<void> {
     log.error(err as never);
   });
 
-  let idleSince = 0;
   while (running) {
     try {
       const { task } = await client.claim();
       if (task) {
-        idleSince = 0;
         log.info({ taskId: task.id, type: task.type }, 'claimed task');
         await executeTask(client, task, browser);
-      } else {
-        const now = Date.now();
-        if (idleSince === 0) idleSince = now;
-        else if (now - idleSince > 30_000) {
-          await client.heartbeat(session.id).catch(() => undefined);
-          idleSince = 0;
-        }
       }
     } catch (err) {
       log.error({ err: String(err) }, 'agent loop error');

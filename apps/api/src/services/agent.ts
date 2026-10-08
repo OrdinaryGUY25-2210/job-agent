@@ -193,6 +193,7 @@ export async function getTaskContext(userId: string, taskId: string) {
     yearsExperience: profile?.yearsExperience ?? 0,
     skills: profile?.skills ?? [],
     workAuthorization: profile?.workAuthorization ?? '',
+    remotePreferred: profile?.remotePreferred ?? false,
     expectedSalary: [profile?.expectedSalaryMin, profile?.expectedSalaryMax],
     cv: defaultCvDescription,
   };

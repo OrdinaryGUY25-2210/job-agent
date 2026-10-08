@@ -41,39 +41,50 @@ export async function executeTask(
 
 async function runDiscovery(client: ApiClient, task: AgentTask, browser: Session): Promise<void> {
   const payload = task.payload as { portals?: string[]; query?: string };
-  const query = payload.query ?? '';
+  let query = payload.query ?? '';
   let wanted = payload.portals && payload.portals.length > 0 ? payload.portals : [];
-  if (wanted.length === 0) {
-    try {
-      const ctx = await client.taskContext(task.id);
-      wanted = (ctx.portals ?? []).filter((p) => p.enabled).map((p) => p.portal);
-    } catch {
-      wanted = [];
-    }
+
+  let ctx: Awaited<ReturnType<ApiClient['taskContext']>> | null = null;
+  try {
+    ctx = await client.taskContext(task.id);
+  } catch {
+    ctx = null;
   }
+
+  if (wanted.length === 0) wanted = (ctx?.portals ?? []).filter((p) => p.enabled).map((p) => p.portal);
   if (wanted.length === 0) wanted = ['linkedin.com'];
+
+  const prefLocations = ((ctx?.preferences as { locations?: string[] } | undefined)?.locations ?? []).filter(Boolean);
+  const remoteWanted = ctx?.profile?.remotePreferred === true || prefLocations.some((l) => /remote/i.test(l));
+  if (remoteWanted && !/remote/i.test(query)) query = query ? `${query} remote` : 'remote';
 
   const portals = wanted.map((p) => p.replace(/^https?:\/\//, '').toLowerCase());
   const allowedPortals = portals.filter((p) => allowedDomains.some((d) => p === d || p.endsWith(`.${d}`)));
 
-  for (const portal of allowedPortals.slice(0, 2)) {
-    const adapter = new GenericAdapter(portal);
-    const url = adapter.discoverUrl({ query });
-    if (!url) {
-      log.warn({ portal }, 'no discover URL for portal');
-      continue;
-    }
-    await client.emit('discovery_started', { portal, url });
-    const page = await navigate(browser, url, allowedDomains);
-    await page.waitForTimeout(2500);
+  for (const portal of allowedPortals) {
+    try {
+      const adapter = new GenericAdapter(portal);
+      const url = adapter.discoverUrl({ query });
+      if (!url) {
+        log.warn({ portal }, 'no discover URL for portal');
+        continue;
+      }
+      await client.emit('discovery_started', { portal, url });
+      const page = await navigate(browser, url, allowedDomains);
+      await page.waitForTimeout(2500);
 
-    const jobs = await adapter.extractJobs(page);
-    if (jobs.length === 0) {
-      await client.emit('discovery_empty', { portal });
-      continue;
+      const jobs = await adapter.extractJobs(page);
+      if (jobs.length === 0) {
+        await client.emit('discovery_empty', { portal });
+        continue;
+      }
+      const result = await client.ingest(jobs, task.id);
+      await client.emit('discovery_completed', { portal, jobs: jobs.length, ...result });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log.warn({ portal, err: msg }, 'portal discovery failed');
+      await client.emit('discovery_failed', { portal, error: msg }).catch(() => undefined);
     }
-    const result = await client.ingest(jobs, task.id);
-    await client.emit('discovery_completed', { portal, jobs: jobs.length, ...result });
   }
 }
 
