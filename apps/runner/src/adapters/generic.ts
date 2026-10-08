@@ -97,7 +97,9 @@ export class GenericAdapter implements PortalAdapter {
     for (const link of raw) {
       const url = absoluteUrl(current, link.href);
       if (url === current || jobs.some((j) => j.jobUrl === url)) continue;
-      const title = (link.title || link.aria || link.text || 'Unknown position').slice(0, 300);
+      const title = (link.title || link.aria || link.text || 'Unknown position')
+        .replace(/^(?:job card title|job title|title)\s*:\s*/i, '')
+        .slice(0, 300);
       if (title.length < 2) continue;
       if (/^(jobs?|careers?|opportunities|search|browse|view all|lihat semua|cari lowongan|semua lowongan|lowongan kerja|all jobs|explore)( page)?$/i.test(title)) continue;
       jobs.push({
@@ -252,8 +254,14 @@ async function labelFor(page: Page, input: import('playwright').Locator): Promis
 }
 
 function extractExternalId(url: string): string | null {
-  const m = url.match(/\/(?:view-)?([A-Za-z0-9_-]{12,})/);
-  return m ? m[1] : null;
+  try {
+    const path = url.split('?')[0]?.split('#')[0] ?? '';
+    const segs = path.split('/').filter(Boolean);
+    const last = segs[segs.length - 1] ?? '';
+    return /^[A-Za-z0-9_-]{6,}$/.test(last) ? last : null;
+  } catch {
+    return null;
+  }
 }
 
 /** LinkedIn adapter — delegates to the generic DOM strategy for now. */

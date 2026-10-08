@@ -109,32 +109,30 @@ async function runDiscovery(client: ApiClient, task: AgentTask, browser: Session
     }
   }
 
-  if (ingestedCount === 0) {
-    if (okCount > 0) {
-      await client
-        .report(task.id, {
-          status: 'completed',
-          state: 'idle',
-          error: null,
-          stopReason: null,
-          applicationId: null,
-          result: { discovered: 0, note: 'no jobs found for query' },
-        })
-        .catch((e) => log.warn({ err: String(e) }, 'final completed report failed'));
-    } else {
-      const msg = lastError ?? 'no portal could be crawled';
-      await client
-        .report(task.id, {
-          status: 'failed',
-          state: 'idle',
-          error: msg,
-          stopReason: classifyError(new Error(msg)),
-          applicationId: null,
-          result: null,
-        })
-        .catch((e) => log.warn({ err: String(e) }, 'final failed report failed'));
-      await client.emit('task_failed', { taskId: task.id, error: msg }).catch(() => undefined);
-    }
+  if (okCount === 0) {
+    const msg = lastError ?? 'no portal could be crawled';
+    await client
+      .report(task.id, {
+        status: 'failed',
+        state: 'idle',
+        error: msg,
+        stopReason: classifyError(new Error(msg)),
+        applicationId: null,
+        result: null,
+      })
+      .catch((e) => log.warn({ err: String(e) }, 'final failed report failed'));
+    await client.emit('task_failed', { taskId: task.id, error: msg }).catch(() => undefined);
+  } else {
+    await client
+      .report(task.id, {
+        status: 'completed',
+        state: 'idle',
+        error: null,
+        stopReason: null,
+        applicationId: null,
+        result: { portals: okCount, ingested: ingestedCount },
+      })
+      .catch((e) => log.warn({ err: String(e) }, 'final completed report failed'));
   }
 }
 

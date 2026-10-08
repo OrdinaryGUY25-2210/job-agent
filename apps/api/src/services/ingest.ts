@@ -104,16 +104,14 @@ export async function ingestJobs(
         filtered++;
       }
     } catch (err) {
+      const rawMsg = err instanceof Error ? err.message : String(err);
+      const flat = rawMsg.replace(/\s+/g, ' ');
       errors.push({
         title: (j.title ?? '').slice(0, 80),
         jobUrl: (j.jobUrl ?? '').slice(0, 150),
-        error: err instanceof Error ? err.message : String(err),
+        error: flat.length > 400 ? `…${flat.slice(-320)}` : flat,
       });
     }
-  }
-
-  if (input.tasksId) {
-    await db().update(schema.agentTasks).set({ status: 'completed', finishedAt: new Date() }).where(eq(schema.agentTasks.id, input.tasksId));
   }
 
   return { ingested, matched, filtered, errors };
