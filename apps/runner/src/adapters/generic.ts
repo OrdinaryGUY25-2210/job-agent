@@ -8,6 +8,46 @@ import type { ApplyForm, ApplyOutcome, ApplyPage, PortalAdapter } from './base.j
  * links in anchors; apply logic is intentionally conservative and stops
  * instead of guessing.
  */
+interface RawLink {
+  href: string;
+  text: string;
+  title: string;
+  aria: string;
+  company: string;
+  location: string;
+}
+
+const EXTRACT_JOB_LINKS = `els => {
+  const jobHint = /\\/(jobs|job|job-openings|refer|careers\\/job)(\\/|\\?|$)/i;
+  const clean = (s) => (s == null ? '' : String(s)).replace(/\\s+/g, ' ').trim();
+  const pick = (root, sels) => {
+    if (!root || !root.querySelector) return '';
+    for (const sel of sels) {
+      const el = root.querySelector(sel);
+      const t = clean(el ? el.textContent : null);
+      if (t) return t;
+    }
+    return '';
+  };
+  return els
+    .filter((a) => {
+      const href = a.getAttribute('href') || '';
+      return /^(https?:)?(\\/\\/)?[^/]/.test(href) || href.startsWith('/');
+    })
+    .map((a) => {
+      const card = a.closest('li') || a.closest('article') || a.closest('[class*="card"]') || a.parentElement;
+      return {
+        href: a.getAttribute('href') || '',
+        text: clean(a.textContent).slice(0, 300),
+        title: a.getAttribute('title') || '',
+        aria: a.getAttribute('aria-label') || '',
+        company: pick(card, ['[class*="subtitle"]', '[class*="company"]', '[class*="employer"]', 'h4']).slice(0, 300),
+        location: pick(card, ['[class*="location"]', '[class*="workplace"]', '[class*="loc"]', 'address']).slice(0, 300),
+      };
+    })
+    .filter((l) => jobHint.test(l.href) || /linkedin\\.com\\/jobs\\/view\\//i.test(l.href));
+}`;
+
 export class GenericAdapter implements PortalAdapter {
   portal: string;
 
@@ -40,35 +80,7 @@ export class GenericAdapter implements PortalAdapter {
 
   async extractJobs(page: Page): Promise<DiscoveredJob[]> {
     const current = page.url();
-    const raw = await page.$$eval('a[href]', (els) => {
-      const jobHint = /\/(jobs|job|job-openings|refer|careers\/job)(\/|\?|$)/i;
-      const clean = (s: string | null | undefined): string => (s ?? '').replace(/\s+/g, ' ').trim();
-      const pick = (root: { querySelector: (selectors: string) => { textContent: string | null } | null } | null | undefined, sels: string[]): string => {
-        if (!root) return '';
-        for (const sel of sels) {
-          const t = clean(root.querySelector(sel)?.textContent ?? null);
-          if (t) return t;
-        }
-        return '';
-      };
-      return els
-        .filter((a) => {
-          const href = a.getAttribute('href') ?? '';
-          return /^(https?:)?(\/\/)?[^/]/.test(href) || href.startsWith('/');
-        })
-        .map((a) => {
-          const card = a.closest('li') || a.closest('article') || a.closest('[class*="card"]') || a.parentElement;
-          return {
-            href: a.getAttribute('href') ?? '',
-            text: clean(a.textContent).slice(0, 300),
-            title: a.getAttribute('title') ?? '',
-            aria: a.getAttribute('aria-label') ?? '',
-            company: pick(card, ['[class*="subtitle"]', '[class*="company"]', '[class*="employer"]', 'h4']).slice(0, 300),
-            location: pick(card, ['[class*="location"]', '[class*="workplace"]', '[class*="loc"]', 'address']).slice(0, 300),
-          };
-        })
-        .filter((l) => jobHint.test(l.href) || /linkedin\.com\/jobs\/view\//i.test(l.href));
-    });
+    const raw = (await page.$$eval('a[href]', EXTRACT_JOB_LINKS)) as RawLink[];
 
     const jobs: DiscoveredJob[] = [];
     for (const link of raw) {

@@ -5,7 +5,7 @@ import { createLogger } from '@jobagent/logger';
 import { config, allowedDomains } from '../config.js';
 import type { ApiClient } from '../client.js';
 import type { Session } from '../browser.js';
-import { navigate } from '../browser.js';
+import { navigate, closeBrowser, openBrowser } from '../browser.js';
 import { GenericAdapter, LinkedInAdapter } from '../adapters/generic.js';
 import type { ApplyForm } from '../adapters/base.js';
 
@@ -70,20 +70,21 @@ async function runDiscovery(client: ApiClient, task: AgentTask, browser: Session
         continue;
       }
       await client.emit('discovery_started', { portal, url });
-      const page = await navigate(browser, url, allowedDomains);
+      const page = await withTimeout(navigate(browser, url, allowedDomains), 60_000, 'NAVIGATE');
       await page.waitForTimeout(2500);
 
-      const jobs = await adapter.extractJobs(page);
+      const jobs = await withTimeout(adapter.extractJobs(page), 30_000, 'EXTRACT');
       if (jobs.length === 0) {
         await client.emit('discovery_empty', { portal });
         continue;
       }
-      const result = await client.ingest(jobs, task.id);
+      const result = await withTimeout(client.ingest(jobs, task.id), 30_000, 'INGEST');
       await client.emit('discovery_completed', { portal, jobs: jobs.length, ...result });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       log.warn({ portal, err: msg }, 'portal discovery failed');
       await client.emit('discovery_failed', { portal, error: msg }).catch(() => undefined);
+      await restartBrowser(browser).catch(() => undefined);
     }
   }
 }
@@ -98,7 +99,7 @@ async function runApplication(client: ApiClient, task: AgentTask, browser: Sessi
 
   await client.emit('apply_started', { jobId: payload.jobId, title: payload.title, company: payload.company });
 
-  const page = await navigate(browser, payload.jobUrl, allowedDomains);
+  const page = await withTimeout(navigate(browser, payload.jobUrl, allowedDomains), 60_000, 'NAVIGATE');
   await page.waitForTimeout(1500);
 
   const cvPath = resolveCv(context);
@@ -161,4 +162,25 @@ function classifyError(err: unknown): string {
   if (/upload_required/i.test(msg)) return 'form_not_detected';
   if (/timeout|rate/i.test(msg)) return 'rate_limited';
   return 'unexpected_page';
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`TIMEOUT_${label}`)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+async function restartBrowser(browser: Session): Promise<void> {
+  await withTimeout(closeBrowser(browser), 5_000, 'BROWSER_CLOSE').catch(() => undefined);
+  const fresh = await withTimeout(openBrowser(), 30_000, 'BROWSER_LAUNCH');
+  browser.context = fresh.context;
+  browser.page = fresh.page;
 }
