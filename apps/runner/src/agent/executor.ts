@@ -47,8 +47,14 @@ async function runDiscovery(client: ApiClient, task: AgentTask, browser: Session
   let ctx: Awaited<ReturnType<ApiClient['taskContext']>> | null = null;
   try {
     ctx = await client.taskContext(task.id);
-  } catch {
-    ctx = null;
+  } catch (err) {
+    log.warn({ err: String(err) }, 'task context fetch failed — retrying');
+    try {
+      ctx = await client.taskContext(task.id);
+    } catch (err2) {
+      log.warn({ err: String(err2) }, 'task context fetch failed — falling back');
+      ctx = null;
+    }
   }
 
   if (wanted.length === 0) wanted = (ctx?.portals ?? []).filter((p) => p.enabled).map((p) => p.portal);
@@ -60,13 +66,20 @@ async function runDiscovery(client: ApiClient, task: AgentTask, browser: Session
 
   const portals = wanted.map((p) => p.replace(/^https?:\/\//, '').toLowerCase());
   const allowedPortals = portals.filter((p) => allowedDomains.some((d) => p === d || p.endsWith(`.${d}`)));
+  log.info({ portals: allowedPortals, query }, 'discovery plan');
+
+  let okCount = 0;
+  let ingestedCount = 0;
+  let lastError: string | null = null;
 
   for (const portal of allowedPortals) {
+    log.info({ portal }, 'portal discovery begin');
     try {
       const adapter = new GenericAdapter(portal);
       const url = adapter.discoverUrl({ query });
       if (!url) {
         log.warn({ portal }, 'no discover URL for portal');
+        lastError = `no discover URL for ${portal}`;
         continue;
       }
       await client.emit('discovery_started', { portal, url });
@@ -75,16 +88,52 @@ async function runDiscovery(client: ApiClient, task: AgentTask, browser: Session
 
       const jobs = await withTimeout(adapter.extractJobs(page), 30_000, 'EXTRACT');
       if (jobs.length === 0) {
+        okCount += 1;
         await client.emit('discovery_empty', { portal });
+        log.info({ portal }, 'portal discovery empty');
         continue;
       }
       const result = await withTimeout(client.ingest(jobs, task.id), 30_000, 'INGEST');
+      okCount += 1;
+      ingestedCount += 1;
       await client.emit('discovery_completed', { portal, jobs: jobs.length, ...result });
+      log.info({ portal, jobs: jobs.length, ...result }, 'portal discovery done');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      lastError = msg;
       log.warn({ portal, err: msg }, 'portal discovery failed');
       await client.emit('discovery_failed', { portal, error: msg }).catch(() => undefined);
-      await restartBrowser(browser).catch(() => undefined);
+      await restartBrowser(browser)
+        .then(() => log.info({ portal }, 'browser restarted after failure'))
+        .catch((e) => log.warn({ err: String(e) }, 'browser restart failed'));
+    }
+  }
+
+  if (ingestedCount === 0) {
+    if (okCount > 0) {
+      await client
+        .report(task.id, {
+          status: 'completed',
+          state: 'idle',
+          error: null,
+          stopReason: null,
+          applicationId: null,
+          result: { discovered: 0, note: 'no jobs found for query' },
+        })
+        .catch((e) => log.warn({ err: String(e) }, 'final completed report failed'));
+    } else {
+      const msg = lastError ?? 'no portal could be crawled';
+      await client
+        .report(task.id, {
+          status: 'failed',
+          state: 'idle',
+          error: msg,
+          stopReason: classifyError(new Error(msg)),
+          applicationId: null,
+          result: null,
+        })
+        .catch((e) => log.warn({ err: String(e) }, 'final failed report failed'));
+      await client.emit('task_failed', { taskId: task.id, error: msg }).catch(() => undefined);
     }
   }
 }

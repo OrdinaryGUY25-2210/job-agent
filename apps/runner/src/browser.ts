@@ -16,6 +16,7 @@ export async function openBrowser(): Promise<Session> {
     viewport: { width: 1360, height: 900 },
     args: ['--disable-blink-features=AutomationControlled'],
   });
+  await context.addInitScript('globalThis.__name = (fn) => fn;');
   return { context, page: null };
 }
 

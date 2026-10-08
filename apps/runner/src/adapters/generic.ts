@@ -81,6 +81,7 @@ export class GenericAdapter implements PortalAdapter {
   async extractJobs(page: Page): Promise<DiscoveredJob[]> {
     const current = page.url();
     const raw = (await page.$$eval('a[href]', EXTRACT_JOB_LINKS)) as RawLink[];
+    if (!Array.isArray(raw)) throw new Error(`EXTRACT_INVALID: expected array, got ${raw === null ? 'null' : typeof raw}`);
 
     const jobs: DiscoveredJob[] = [];
     for (const link of raw) {

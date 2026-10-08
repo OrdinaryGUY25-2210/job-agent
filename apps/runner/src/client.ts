@@ -43,6 +43,7 @@ export class ApiClient {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
+      signal: AbortSignal.timeout(30_000),
     });
     const body = (await res.json().catch(() => ({}))) as { token?: string; error?: string };
     if (!res.ok || !body.token) throw new ApiError(res.status, body.error ?? 'Login failed');
@@ -53,6 +54,7 @@ export class ApiClient {
     const res = await fetch(`${this.baseUrl}/api${path}`, {
       ...init,
       headers: { 'Content-Type': 'application/json', ...this.authHeader, ...(init?.headers ?? {}) },
+      signal: init?.signal ?? AbortSignal.timeout(30_000),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new ApiError(res.status, typeof body === 'object' && body && 'error' in body ? String(body.error) : 'Request failed');
